@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="robots" content="noindex">
+  <meta name="description" content="Sign in to manage or request FloLabs workspace access.">
+  <title>FloLabs Access</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="header-inner frame">
+      <a class="wordmark" href="./" aria-label="FloLabs Access home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span>FloLabs <span>Access</span></span>
+      </a>
+      <div class="head-actions">
+        <button class="text-button" id="sign-out" hidden>Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="frame" tabindex="-1">
+    <p id="portal-error" class="feedback error" role="alert" hidden></p>
+    <div class="access-shell" id="access-shell">
+      <section class="access-context" aria-labelledby="workspace-name">
+        <div>
+          <span class="workspace-label"><i aria-hidden="true"></i> Team workspace</span>
+          <h1 id="workspace-name">Workspace<br>access</h1>
+          <p>Use your FloLabs account to request access for the current cycle.</p>
+        </div>
+        <div class="cycle-ticket">
+          <div class="ticket-top"><span>Access cycle</span><span id="cycle-day" class="mono"></span></div>
+          <div class="cycle-track" id="cycle-track" aria-hidden="true"></div>
+          <div class="ticket-bottom"><span>Next reset</span><time id="cycle-end"></time></div>
+        </div>
+      </section>
+
+      <section class="access-body" aria-label="Workspace access">
+        <div class="access-content">
+          <section id="login-panel">
+            <h2 tabindex="-1">Sign in</h2>
+            <p class="muted intro">Use the username and password from your workspace admin.</p>
+            <form id="login-form">
+              <label for="username">Username</label>
+              <input id="username" name="username" placeholder="e.g. mina.ali" autocomplete="username" autocapitalize="none" maxlength="40" required>
+              <label for="password">Password</label>
+              <div class="password-field">
+                <input id="password" name="password" type="password" placeholder="Enter your password" autocomplete="current-password" aria-describedby="login-error" maxlength="256" required>
+                <button class="text-button" type="button" id="show-password" aria-controls="password" aria-pressed="false">Show</button>
+              </div>
+              <p id="login-error" class="feedback error" role="alert" hidden></p>
+              <p id="login-status" class="feedback" role="status" hidden></p>
+              <button class="button primary full" type="submit">Sign in <span aria-hidden="true">→</span></button>
+            </form>
+          </section>
+
+          <section id="member-panel" hidden>
+            <h2 tabindex="-1">Your access</h2>
+            <p class="muted intro" id="member-intro">Request access for your workspace admin to review.</p>
+            <dl class="completion-details">
+              <div><dt>Signed in as</dt><dd id="member-name"></dd></div>
+              <div><dt>Access status</dt><dd id="member-status" aria-live="polite"></dd></div>
+            </dl>
+            <p id="request-error" class="feedback error" role="alert" hidden></p>
+            <button class="button primary full member-action" id="request-access">Request access <span aria-hidden="true">→</span></button>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <section id="admin-panel" aria-labelledby="admin-heading" hidden>
+      <div class="admin-heading">
+        <div>
+          <h1 id="admin-heading" tabindex="-1">Workspace access</h1>
+          <p class="muted">Create member accounts and review access requests for this cycle.</p>
+        </div>
+        <button class="button primary" id="add-person"><span aria-hidden="true">+</span> Add person</button>
+      </div>
+      <div class="metrics">
+        <div class="metric"><span>Active people</span><strong id="metric-people">0</strong></div>
+        <div class="metric"><span>Access requests</span><strong id="metric-requests">0</strong></div>
+        <div class="metric"><span>Approved</span><strong id="metric-grants">0</strong></div>
+      </div>
+      <div class="admin-cycle">
+        <div><span>Current cycle</span><strong id="admin-cycle-label"></strong></div>
+        <button class="button secondary" id="cycle-settings">Cycle settings</button>
+      </div>
+
+      <section class="table-card" aria-labelledby="people-heading">
+        <div class="table-toolbar">
+          <h2 id="people-heading">People</h2>
+          <div class="filters">
+            <input type="search" id="search" placeholder="Find a person…" aria-label="Find a person">
+            <select id="filter" aria-label="Filter by status">
+              <option value="">All statuses</option><option>Eligible</option><option>Pending</option><option>Approved</option><option>Declined</option><option>Disabled</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-scroll" tabindex="0" role="region" aria-label="People and access request counts">
+          <table>
+            <thead><tr><th scope="col">Name</th><th scope="col">Status</th><th scope="col">Requests</th><th scope="col">Last request</th></tr></thead>
+            <tbody id="people-rows"></tbody>
+          </table>
+        </div>
+        <p id="no-results" class="no-results" hidden>No people match these filters.</p>
+      </section>
+    </section>
+
+    <footer class="site-footer"><span>Contact your workspace admin for access</span></footer>
+  </main>
+
+  <dialog id="add-dialog" aria-labelledby="add-title">
+    <div class="dialog-inner">
+      <div class="dialog-heading"><h2 id="add-title">Add a person</h2><button class="close text-button" data-close aria-label="Close add person">×</button></div>
+      <form id="add-form">
+        <label for="new-name">Display name <span class="muted">(optional)</span></label><input id="new-name" name="name" autocomplete="off" maxlength="100">
+        <label for="new-username">Username</label><input id="new-username" name="username" autocomplete="off" autocapitalize="none" maxlength="40" required>
+        <p id="add-error" class="feedback error" role="alert" hidden></p>
+        <button class="button primary full" type="submit">Create and generate password</button>
+      </form>
+      <div id="created-account" hidden>
+        <p class="muted" id="created-info"></p>
+        <label for="generated-username">Username</label>
+        <input id="generated-username" class="mono" readonly>
+        <label for="generated-password">Generated password</label>
+        <input id="generated-password" class="mono" readonly>
+        <button class="button primary full" id="copy-password">Copy login details</button>
+        <p id="copy-feedback" class="feedback" role="status" hidden></p>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="person-dialog" aria-labelledby="person-title">
+    <div class="dialog-inner">
+      <div class="dialog-heading"><h2 id="person-title"></h2><button class="close text-button" data-close aria-label="Close activity">×</button></div>
+      <p class="muted" id="person-info"></p>
+      <h3>Activity this cycle</h3>
+      <ul class="activity-list" id="person-activity"></ul>
+      <p id="person-error" class="feedback error" role="alert" hidden></p>
+      <div class="review-actions" id="review-actions" hidden>
+        <button class="button primary" id="approve-request">Approve request</button>
+        <button class="button secondary" id="decline-request">Decline</button>
+      </div>
+      <button class="button secondary" id="toggle-access"></button>
+    </div>
+  </dialog>
+
+  <dialog id="cycle-dialog" aria-labelledby="settings-title">
+    <div class="dialog-inner">
+      <div class="dialog-heading"><h2 id="settings-title">Access cycle</h2><button class="close text-button" data-close aria-label="Close cycle settings">×</button></div>
+      <p class="muted">A cadence change applies at the next reset.</p>
+      <form id="cadence-form">
+        <label for="cadence">Reset frequency</label>
+        <select id="cadence"><option value="3">Every 3 days</option><option value="7">Every 7 days</option></select>
+        <button class="button primary full" type="submit">Save cadence</button>
+        <p id="cadence-feedback" class="feedback" role="status" hidden></p>
+        <p id="cadence-error" class="feedback error" role="alert" hidden></p>
+      </form>
+      <div class="reset-section">
+        <p class="muted">Resetting now signs everyone out and opens a new request cycle.</p>
+        <button class="button secondary" id="reset-cycle">Reset cycle now</button>
+      </div>
+    </div>
+  </dialog>
+</body>
+</html>

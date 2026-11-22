@@ -1,32 +1,56 @@
-# Claude access portal
+# FloLabs Access portal
 
-## Goal
+The portal manages FloLabs accounts and access requests. Admins create usernames and the server generates passwords. Members sign in, request access, and see the admin’s approval or decline. Each member can have one pending request or approved request per cycle. The portal authenticates its own accounts and records its own approvals.
 
-Give each teammate or approved client a way to regain access after a team-wide sign-out without asking someone to forward a code. Each person has a named portal account. The reset interval is a configuration choice between every 3 days and every 7 days.
+## Run locally
 
-## Original proposal
+```powershell
+npm ci
+npm start
+```
 
-1. Use one Claude Max account and sign out all active Claude sessions at the end of each cycle.
-2. Have each person sign in to the portal with an assigned username and their own password. Use their name as the display label and a unique user ID to track access.
-3. When the user requests a code, the proposed portal would display the code from the specific Claude sign-in email redirected to the site.
-4. Count one successful sign-in per person per cycle. Requesting or viewing a code leaves the attempt pending. An expired code or an unfinished sign-in leaves the person eligible to retry. The next cycle restores eligibility.
+Open `http://127.0.0.1:3000`. On first start, the server creates the `admin` account and writes its login details to `.portal/admin-login.txt`. Copy the credentials into your password manager. Account records, sessions, and request history persist in `.portal/portal.json`. Both files are private to the checkout and excluded from Git and deployment. Run one server process against the local store.
 
-Anthropic's Consumer Terms prohibit sharing account access or credentials. Claude documents a manual sign-out across devices, and its public sign-in guide describes an email link that can produce a verification code. The guide doesn't describe a completion signal for an external portal. Showing a code would therefore leave the portal unable to verify when the teammate finished signing in. [Consumer Terms](https://www.anthropic.com/legal/consumer-terms) · [Sign out of all sessions](https://support.claude.com/en/articles/10310342-how-do-i-log-out-of-all-active-sessions) · [Claude sign-in guide](https://support.claude.com/en/articles/13189465-log-in-to-your-claude-account)
+The administrator can add a member with a username and an optional display name. The creation dialog shows the password once. A member can sign in with the same credentials on different browsers or devices when they use the same deployed portal. Disabling a member revokes that member’s active sessions. A cycle reset revokes everyone’s sessions and starts a new request cycle while retaining account records.
 
-## Supported approaches
+## Deploy the serverless version
 
-- **Native Claude access.** Give each teammate their own Claude Team or Enterprise seat. Review the plan's session controls if the reset must sign people out of the native Claude apps. Anthropic documents member sign-out controls, including an Enterprise Admin API in beta. [Team setup](https://support.claude.com/en/articles/9267247-get-started-with-the-team-plan) · [Member session controls](https://support.claude.com/en/articles/13133750-manage-members-on-team-and-enterprise-plans)
-- **Vercel portal.** Give each person an individual portal account and use a server-side Claude API service account for model access. The portal issues and verifies its own codes, controls its own sessions, and can reliably enforce the reset. This approach provides Claude model access inside the portal. [Claude API keys](https://platform.claude.com/docs/en/get-api-key)
+1. Connect the repository to a Vercel project and create a **private** Vercel Blob store. Vercel supplies `BLOB_READ_WRITE_TOKEN` to the function. Give each environment its own private store. [Private Blob storage](https://vercel.com/docs/vercel-blob/private-storage)
+2. Supply that same token to `.env.local` or the shell for the one-time setup command below. Save the generated credentials privately.
+3. Deploy the project. The static frontend is served from `public/`. The `/api/portal` Vercel Function serves the authenticated state and handles changes. The deployed site uses HTTPS and secure session cookies. [Vercel Node.js Functions](https://vercel.com/docs/functions/runtimes/node-js)
 
-## Vercel portal MVP
+```powershell
+npm run setup -- --blob admin
+```
 
-1. An admin creates a named account for each approved person and can disable it immediately. The portal uses managed authentication for individual credentials and sends its own short-lived verification code to that person's registered email when requested.
-2. Track the current attempt as **eligible**, **pending**, or **complete**. A code request moves the user to pending. An expired or invalid code allows a retry with rate limits. After verification succeeds, create the portal session and record completion in the same transaction. Keep completion unique to the user and cycle, and block further code requests until the next cycle.
-3. Set one shared cycle start and choose a 3-day or 7-day duration. Every protected request checks that its session belongs to the current cycle and that the user's account is active. At the next boundary, require everyone to sign in again. Computing the current cycle on each request lets the reset take effect without a scheduled job.
-4. Use Vercel Functions and a small managed Postgres database for account IDs and roles, cycle settings, active sessions, and verification status. Let the authentication provider handle passwords and verification secrets. Keep the Claude API key server-side in Vercel environment variables. [Vercel Functions](https://vercel.com/docs/functions) · [Vercel Marketplace storage](https://vercel.com/docs/marketplace-storage)
+The server stores salted scrypt password hashes and hashes of opaque session tokens. The private Blob update compares its ETag before writing, so concurrent updates can’t silently overwrite each other. Request activity is bounded to the most recent 200 events per member and is pruned after 90 days at a cycle boundary. The admin panel shows current-cycle activity. [Consistent private reads](https://vercel.com/changelog/vercel-blob-now-supports-consistent-reads-on-private-storage) · [Conditional Blob writes](https://vercel.com/docs/vercel-blob#conditional-writes)
 
-## Open decisions
+Vercel Hobby lists 1 GB of Blob storage, 10,000 simple operations, and 2,000 advanced operations included. Hobby is limited to personal or non-commercial use. FloLabs should use its applicable Vercel plan and check plan usage before deployment. [Blob pricing](https://vercel.com/docs/vercel-blob/usage-and-pricing) · [Vercel terms](https://vercel.com/legal/terms)
 
-- Choose a 3-day or 7-day cycle and its first reset time in Asia/Karachi.
-- Confirm whether users need the native Claude apps or only Claude model access in the portal.
-- Decide how users recover access if they lose their portal session after completing verification for the current cycle.
+## Portal API
+
+`GET /api/portal` returns the current cycle, signed-in member, and roster when the session belongs to an admin.
+
+`POST /api/portal` accepts a JSON body with an `action`.
+
+| Action | Parameters | Result |
+| --- | --- | --- |
+| `sign-in` | `username`, `password` | Start a session and return the portal state. |
+| `sign-out` | None | Revoke this session. |
+| `request-access` | None | Record a member’s request. Repeating a pending or approved request leaves its count unchanged. |
+| `add-member` | `username`, optional `name` | Create a member and return the generated password once. |
+| `review-request` | `username`, `decision` of `approve` or `decline` | Update a pending request. |
+| `set-active` | `username`, `active` | Enable or disable a member. |
+| `set-cadence` | `days` of `3` or `7` | Schedule a cadence change at the next boundary. |
+| `reset-cycle` | None | End the current cycle and revoke all sessions. |
+
+## Verification and design tools
+
+`npm test` checks generated credentials, sessions on two devices, role enforcement, concurrent requests, approvals, and automatic cycle expiry against an isolated file store.
+
+These optional UI design tools are installed locally in the `Tools-Access-Server` checkout. They are independent of the portal runtime.
+
+```powershell
+claude plugin install unslop --marketplace heydamir/unslop --scope local
+npx --yes skills add https://github.com/emilkowalski/skills --skill apple-design --agent codex --yes
+```
